@@ -24,7 +24,6 @@ Thumbs.db
 
 frontend/dist/
 frontend/node_modules/
+backend/fixtures/
 
-actionid.txt
-prompt.txt
-PROJECT_STATUS.md
+chat.txt

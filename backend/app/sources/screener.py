@@ -5,11 +5,12 @@ from app.sources.anakin_client import AnakinWireClient
 from app.sources.wire_helpers import run_actions
 
 
-async def fetch_sebi(ticker: ResolvedTicker, settings: Settings) -> SourceResult:
+async def fetch_screener(ticker: ResolvedTicker, settings: Settings) -> SourceResult:
     client = AnakinWireClient(settings)
     return await run_actions(
         client,
         {
-            "latest": ("sebi_latest", {"query": ticker.nse_symbol}),
+            "overview": ("scr_company_overview", {"company": ticker.nse_symbol}),
+            "quarterly": ("scr_company_quarterly", {"company": ticker.nse_symbol}),
         },
     )

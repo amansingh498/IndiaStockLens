@@ -10,12 +10,16 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 class Settings(BaseSettings):
     anakin_api_key: str | None = None
+    anakin_api_keys: str | None = None
     gemini_api_key: str | None = None
     anakin_base_url: str = "https://api.anakin.io/v1"
+    anakin_requests_per_minute: int = 25
+    anakin_wire_concurrency: int = 6
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     cache_ttl_seconds: int = 900
     request_timeout_seconds: float = 45.0
-    wire_poll_interval_seconds: float = 1.5
-    wire_max_poll_seconds: float = 30.0
+    wire_poll_interval_seconds: float = 2.0
+    wire_max_poll_seconds: float = 90.0
     enable_gemini: bool = False
 
     @field_validator("anakin_base_url", mode="before")
@@ -30,6 +34,15 @@ class Settings(BaseSettings):
             base_url = base_url.removesuffix("/wire")
 
         return base_url
+
+    def get_anakin_api_keys(self) -> list[str]:
+        configured = self.anakin_api_keys or self.anakin_api_key or ""
+        keys = [key.strip() for key in configured.split(",")]
+        return [key for key in keys if key]
+
+    def get_cors_origins(self) -> list[str]:
+        origins = [origin.strip().rstrip("/") for origin in self.cors_origins.split(",")]
+        return [origin for origin in origins if origin]
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

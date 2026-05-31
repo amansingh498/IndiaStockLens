@@ -5,6 +5,7 @@ from app.config import get_settings
 from app.models import AnalysisResponse
 from app.pipeline.analyzer import analyze_ticker
 
+settings = get_settings()
 
 app = FastAPI(
     title="IndiaStockLens API",
@@ -14,10 +15,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=settings.get_cors_origins(),
     allow_credentials=False,
     allow_methods=["GET"],
     allow_headers=["*"],
@@ -31,8 +29,8 @@ async def health() -> dict[str, str]:
 
 @app.get("/analyze/{ticker}", response_model=AnalysisResponse)
 async def analyze(ticker: str) -> AnalysisResponse:
-    settings = get_settings()
-    if not ticker.strip():
+    symbol = ticker.strip().upper()
+    if not symbol:
         raise HTTPException(status_code=400, detail="Ticker is required.")
 
-    return await analyze_ticker(ticker=ticker, settings=settings)
+    return await analyze_ticker(ticker=symbol, settings=settings)

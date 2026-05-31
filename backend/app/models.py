@@ -14,10 +14,14 @@ class SourceResult(BaseModel):
 
 
 class ScoreSet(BaseModel):
+    # Primary three-axis scores (the authoritative signal)
+    data_confidence: int = Field(ge=0, le=10)
+    investment_attractiveness: int = Field(ge=0, le=10)
+    regulatory_risk: int = Field(ge=0, le=10)
+    # Supporting sub-scores (retained for display detail)
     fundamentals: int = Field(ge=0, le=10)
     technicals: int = Field(ge=0, le=10)
     sentiment: int = Field(ge=0, le=10)
-    regulatory_risk: int = Field(ge=0, le=10)
     institutional_trust: int = Field(ge=0, le=10)
     overall: int = Field(ge=0, le=100)
     label: str
