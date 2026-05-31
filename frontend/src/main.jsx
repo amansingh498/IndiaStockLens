@@ -16,6 +16,7 @@ import {
   PanelTop,
   ScrollText,
   Search,
+  ShieldCheck,
   ShieldAlert,
   TrendingDown,
   TrendingUp,
@@ -74,6 +75,8 @@ function App() {
     };
   }, [analysis]);
 
+  const watchItems = useMemo(() => buildWatchItems(analysis), [analysis]);
+
   return (
     <main className="app-shell">
       <section className="workspace">
@@ -106,7 +109,7 @@ function App() {
         <header className="topbar">
           <div className="hero-copy">
             <p className="eyebrow">IndiaStockLens</p>
-            <h1>Stock due diligence brief</h1>
+            <h1>Live Indian Stock Analysis</h1>
             <p className="hero-subtitle">
               Fast quote, risk, report, and source checks for Indian equities.
             </p>
@@ -172,6 +175,8 @@ function App() {
               <ScoreGauge score={analysis.scores.overall} label={analysis.scores.label} />
             </section>
 
+            <SourceHealthBanner analysis={analysis} sourceCounts={sourceCounts} />
+
             <section className="metrics-grid">
               <Metric
                 icon={<IndianRupee size={20} />}
@@ -209,6 +214,10 @@ function App() {
                 <p>{analysis.brief}</p>
               </article>
 
+              <WatchPanel items={watchItems} />
+            </section>
+
+            <section className="content-grid secondary-content">
               <article className="score-panel">
                 <div className="panel-title">
                   <TrendingUp size={18} />
@@ -223,11 +232,12 @@ function App() {
                 <ScoreRow label="Technicals" value={analysis.scores.technicals} />
                 <ScoreRow label="Sentiment" value={analysis.scores.sentiment} />
                 <ScoreRow label="Institutional trust" value={analysis.scores.institutional_trust} />
+                <ScoreGuide />
               </article>
+              <QuotePanel price={analysis.price} />
             </section>
 
             <section className="detail-grid" id="reports">
-              <QuotePanel price={analysis.price} />
               <ItemPanel
                 title="Company Reports & Events"
                 icon={<ScrollText size={18} />}
@@ -279,6 +289,102 @@ function App() {
       </section>
     </main>
   );
+}
+
+function SourceHealthBanner({ analysis, sourceCounts }) {
+  const warningSources = Object.entries(analysis.sources || {}).filter(([, source]) => source.status !== "ok");
+  const isHealthy = sourceCounts.warning === 0 && sourceCounts.total > 0;
+  return (
+    <section className={`source-health ${isHealthy ? "healthy" : "degraded"}`}>
+      <div>
+        {isHealthy ? <ShieldCheck size={20} /> : <AlertCircle size={20} />}
+        <strong>{sourceCounts.ok}/{sourceCounts.total} live sources available</strong>
+      </div>
+      <p>
+        {isHealthy
+          ? "All configured sources returned usable data for this brief."
+          : `${warningSources.map(([name]) => name.replaceAll("_", " ")).join(", ")} need review.`}
+      </p>
+    </section>
+  );
+}
+
+function WatchPanel({ items }) {
+  return (
+    <article className="watch-panel">
+      <div className="panel-title">
+        <ShieldAlert size={18} />
+        <h3>What To Watch</h3>
+        <span>{items.length}</span>
+      </div>
+      <div className="watch-list">
+        {items.map((item) => (
+          <div key={item.title} className={`watch-item ${item.tone}`}>
+            <strong>{item.title}</strong>
+            <p>{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function buildWatchItems(analysis) {
+  if (!analysis) return [];
+  const items = [];
+  const scores = analysis.scores || {};
+  const sources = analysis.sources || {};
+  const failedSources = Object.entries(sources).filter(([, source]) => source.status !== "ok");
+
+  if (failedSources.length) {
+    items.push({
+      tone: "warn",
+      title: "Data coverage is incomplete",
+      detail: `${failedSources.map(([name]) => name.replaceAll("_", " ")).join(", ")} did not return cleanly.`,
+    });
+  }
+
+  if ((scores.data_confidence ?? 0) < 6) {
+    items.push({
+      tone: "warn",
+      title: "Low data confidence",
+      detail: "Treat the score as preliminary until more live sources return usable records.",
+    });
+  }
+
+  if ((scores.regulatory_risk ?? 10) < 6) {
+    items.push({
+      tone: "risk",
+      title: "Regulatory review needed",
+      detail: "Regulatory safety is below the preferred range or source coverage is weak.",
+    });
+  }
+
+  if ((scores.investment_attractiveness ?? 0) < 6) {
+    items.push({
+      tone: "neutral",
+      title: "Investment quality is not strong yet",
+      detail: "Valuation, ownership, analyst, or fundamentals signals are not compelling enough.",
+    });
+  }
+
+  if (!analysis.price?.current) {
+    items.push({
+      tone: "risk",
+      title: "Live quote missing",
+      detail: "Price-based metrics and technical movement may be unavailable or stale.",
+    });
+  }
+
+  if (!items.length) {
+    items.push({
+      tone: "ok",
+      title: "No major watch item",
+      detail: "The available live data does not show an obvious dashboard-level concern.",
+    });
+  }
+
+  return items.slice(0, 4);
 }
 
 function normalizeAnalysis(payload) {
@@ -340,6 +446,28 @@ function LoadingState() {
         <span />
       </div>
     </section>
+  );
+}
+
+function ScoreGuide() {
+  const rows = [
+    ["Overall score", "0-100 blend of data confidence, investment quality, and regulatory safety."],
+    ["Data confidence", "How much usable live data was returned by the connected sources."],
+    ["Investment quality", "Valuation, analyst stance, ownership, and available fundamental signals."],
+    ["Regulatory safety", "Higher means fewer visible SEBI/NSE risk signals in returned data."],
+    ["Fundamentals", "Price and company financial signals such as PE, filings, and quarterly data."],
+    ["Technicals", "Short-term price movement from the latest quote snapshot."],
+  ];
+
+  return (
+    <div className="score-guide">
+      {rows.map(([term, meaning]) => (
+        <div key={term}>
+          <strong>{term}</strong>
+          <span>{meaning}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
