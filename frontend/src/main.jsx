@@ -3,13 +3,17 @@ import { createRoot } from "react-dom/client";
 import {
   Activity,
   AlertCircle,
+  BarChart3,
   Building2,
   CalendarDays,
   CheckCircle2,
+  Database,
   ExternalLink,
+  Gauge,
   IndianRupee,
   Loader2,
   Newspaper,
+  PanelTop,
   ScrollText,
   Search,
   ShieldAlert,
@@ -19,6 +23,7 @@ import {
 import "./styles.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const QUICK_TICKERS = ["RELIANCE", "TCS", "INFY", "HDFCBANK"];
 
 function App() {
   const [ticker, setTicker] = useState("RELIANCE");
@@ -28,11 +33,16 @@ function App() {
 
   async function analyze(event) {
     event.preventDefault();
-    const symbol = ticker.trim().toUpperCase();
+    await runAnalyze(ticker);
+  }
+
+  async function runAnalyze(value) {
+    const symbol = value.trim().toUpperCase();
     if (!symbol) return;
 
     setLoading(true);
     setError("");
+    setTicker(symbol);
     try {
       const response = await fetch(`${API_BASE}/analyze/${encodeURIComponent(symbol)}`);
       if (!response.ok) {
@@ -58,10 +68,52 @@ function App() {
   return (
     <main className="app-shell">
       <section className="workspace">
+        <nav className="menubar" aria-label="Primary">
+          <div className="brand-lockup">
+            <div className="brand-mark">
+              <BarChart3 size={20} />
+            </div>
+            <div>
+              <strong>IndiaStockLens</strong>
+              <span>Live equity intelligence</span>
+            </div>
+          </div>
+          <div className="menu-links">
+            <a href="#overview">
+              <Gauge size={16} />
+              Overview
+            </a>
+            <a href="#reports">
+              <ScrollText size={16} />
+              Reports
+            </a>
+            <a href="#sources">
+              <Database size={16} />
+              Sources
+            </a>
+          </div>
+        </nav>
+
         <header className="topbar">
-          <div>
+          <div className="hero-copy">
             <p className="eyebrow">IndiaStockLens</p>
             <h1>Stock due diligence brief</h1>
+            <p className="hero-subtitle">
+              Fast quote, risk, report, and source checks for Indian equities.
+            </p>
+            <div className="quick-tickers" aria-label="Popular tickers">
+              {QUICK_TICKERS.map((symbol) => (
+                <button
+                  key={symbol}
+                  type="button"
+                  onClick={() => runAnalyze(symbol)}
+                  disabled={loading}
+                  className={ticker === symbol ? "active" : ""}
+                >
+                  {symbol}
+                </button>
+              ))}
+            </div>
           </div>
           <form className="searchbar" onSubmit={analyze}>
             <Search size={18} aria-hidden="true" />
@@ -85,9 +137,17 @@ function App() {
           </div>
         ) : null}
 
+        {loading && !analysis ? <LoadingState /> : null}
+
         {analysis ? (
           <div className="dashboard">
-            <section className="summary-band">
+            {loading ? (
+              <div className="notice loading">
+                <Loader2 className="spin" size={18} />
+                <span>Refreshing {ticker}</span>
+              </div>
+            ) : null}
+            <section className="summary-band" id="overview">
               <div className="identity">
                 <div className="mark">
                   <Building2 size={26} />
@@ -157,7 +217,7 @@ function App() {
               </article>
             </section>
 
-            <section className="detail-grid">
+            <section className="detail-grid" id="reports">
               <QuotePanel price={analysis.price} />
               <ItemPanel
                 title="Company Reports & Events"
@@ -182,7 +242,7 @@ function App() {
               />
             </section>
 
-            <section className="source-table">
+            <section className="source-table" id="sources">
               <div className="section-heading">
                 <h3>Sources</h3>
                 <p>Provenance for the quote, reports, and risk signals shown above.</p>
@@ -195,13 +255,40 @@ function App() {
             </section>
           </div>
         ) : (
+          !loading && (
           <section className="empty-state">
-            <h2>Enter an NSE ticker to generate the first brief.</h2>
-            <p>The backend currently normalizes Yahoo Finance quote data and reports unavailable sources explicitly.</p>
+            <div className="empty-visual">
+              <PanelTop size={28} />
+            </div>
+            <div>
+              <h2>Enter an NSE ticker to generate the first brief.</h2>
+              <p>Use the search above or start with one of the liquid large-cap names.</p>
+            </div>
           </section>
+          )
         )}
       </section>
     </main>
+  );
+}
+
+function LoadingState() {
+  return (
+    <section className="loading-state" aria-live="polite">
+      <div className="loading-card">
+        <Loader2 className="spin" size={24} />
+        <div>
+          <h2>Building live brief</h2>
+          <p>Quote, company events, regulatory watch, and source provenance are loading.</p>
+        </div>
+      </div>
+      <div className="skeleton-grid">
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
+    </section>
   );
 }
 
