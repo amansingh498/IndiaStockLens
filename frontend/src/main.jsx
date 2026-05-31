@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 const QUICK_TICKERS = ["RELIANCE", "TCS", "INFY", "HDFCBANK"];
 
 function App() {
@@ -44,9 +44,10 @@ function App() {
     setError("");
     setTicker(symbol);
     try {
-      const response = await fetch(`${API_BASE}/analyze/${encodeURIComponent(symbol)}`);
+      const endpoint = `${API_BASE}/analyze/${encodeURIComponent(symbol)}`;
+      const response = await fetch(endpoint);
       if (!response.ok) {
-        throw new Error(`Backend returned ${response.status}`);
+        throw new Error(`Backend returned ${response.status} from ${endpoint}`);
       }
       setAnalysis(await response.json());
     } catch (err) {
