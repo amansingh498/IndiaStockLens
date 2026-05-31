@@ -24,6 +24,7 @@ import "./styles.css";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 const QUICK_TICKERS = ["RELIANCE", "TCS", "INFY", "HDFCBANK"];
+const REQUEST_TIMEOUT_MS = 120000;
 
 function App() {
   const [ticker, setTicker] = useState("RELIANCE");
@@ -43,16 +44,23 @@ function App() {
     setLoading(true);
     setError("");
     setTicker(symbol);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const endpoint = `${API_BASE}/analyze/${encodeURIComponent(symbol)}`;
-      const response = await fetch(endpoint);
+      const response = await fetch(endpoint, { signal: controller.signal });
       if (!response.ok) {
         throw new Error(`Backend returned ${response.status} from ${endpoint}`);
       }
-      setAnalysis(await response.json());
+      setAnalysis(normalizeAnalysis(await response.json()));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to analyze ticker");
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Backend took too long to respond. Try the same ticker again; Render or Anakin may still be warming up.");
+      } else {
+        setError(err instanceof Error ? err.message : "Unable to analyze ticker");
+      }
     } finally {
+      window.clearTimeout(timeout);
       setLoading(false);
     }
   }
@@ -271,6 +279,48 @@ function App() {
       </section>
     </main>
   );
+}
+
+function normalizeAnalysis(payload) {
+  const scores = payload?.scores || {};
+  const fundamentals = safeScore(scores.fundamentals, 5);
+  const technicals = safeScore(scores.technicals, 4);
+  const sentiment = safeScore(scores.sentiment, 5);
+  const regulatoryRisk = safeScore(scores.regulatory_risk, 6);
+  const institutionalTrust = safeScore(scores.institutional_trust, 5);
+  const dataConfidence = safeScore(scores.data_confidence, Math.min(10, 2 + Object.values(payload?.sources || {}).filter((source) => source?.status === "ok").length * 2));
+  const investmentAttractiveness = safeScore(scores.investment_attractiveness, Math.round((fundamentals + institutionalTrust) / 2));
+  const overall = Number.isFinite(Number(scores.overall))
+    ? Number(scores.overall)
+    : Math.max(0, Math.min(100, Math.round(dataConfidence * 2 + investmentAttractiveness * 5 + regulatoryRisk * 3)));
+
+  return {
+    ...payload,
+    price: payload?.price || {},
+    news: Array.isArray(payload?.news) ? payload.news : [],
+    filings: Array.isArray(payload?.filings) ? payload.filings : [],
+    regulatory: Array.isArray(payload?.regulatory) ? payload.regulatory : [],
+    sources: payload?.sources || {},
+    scores: {
+      ...scores,
+      data_confidence: dataConfidence,
+      investment_attractiveness: investmentAttractiveness,
+      regulatory_risk: regulatoryRisk,
+      fundamentals,
+      technicals,
+      sentiment,
+      institutional_trust: institutionalTrust,
+      overall,
+      label: scores.label || (overall >= 75 ? "Strong" : overall >= 55 ? "Watch" : "Caution"),
+    },
+    brief: payload?.brief || "Analysis returned without a generated brief.",
+  };
+}
+
+function safeScore(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.min(10, Math.round(numeric)));
 }
 
 function LoadingState() {

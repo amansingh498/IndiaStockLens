@@ -14,12 +14,15 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     anakin_base_url: str = "https://api.anakin.io/v1"
     anakin_requests_per_minute: int = 25
-    anakin_wire_concurrency: int = 6
+    anakin_wire_concurrency: int = 3
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     cache_ttl_seconds: int = 900
     request_timeout_seconds: float = 45.0
     wire_poll_interval_seconds: float = 2.0
     wire_max_poll_seconds: float = 90.0
+    quote_source_timeout_seconds: float = 35.0
+    optional_source_timeout_seconds: float = 45.0
+    analyze_timeout_seconds: float = 55.0
     enable_gemini: bool = False
 
     @field_validator("anakin_base_url", mode="before")

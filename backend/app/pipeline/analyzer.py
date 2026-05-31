@@ -24,19 +24,7 @@ async def analyze_ticker(ticker: str, settings: Settings) -> AnalysisResponse:
     if cached:
         return cached
 
-    source_tasks = {
-        "yahoo_finance": fetch_yahoo_finance(resolved, settings),
-        "nse": fetch_nse(resolved, settings),
-        "sebi": fetch_sebi(resolved, settings),
-        "screener": fetch_screener(resolved, settings),
-    }
-
-    names = list(source_tasks)
-    results = await asyncio.gather(*source_tasks.values(), return_exceptions=True)
-    sources = {
-        name: _coerce_source_result(result)
-        for name, result in zip(names, results, strict=True)
-    }
+    sources = await _fetch_sources_with_deadlines(resolved, settings)
 
     price = _extract_price(sources)
     relevance_terms = _relevance_terms(resolved.display, price)
@@ -120,6 +108,60 @@ async def analyze_ticker(ticker: str, settings: Settings) -> AnalysisResponse:
 # ------------------------------------------------------------------ #
 # SOURCE COERCION / PUBLIC STRIPPING                                   #
 # ------------------------------------------------------------------ #
+
+async def _fetch_sources_with_deadlines(resolved: Any, settings: Settings) -> dict[str, SourceResult]:
+    source_tasks = {
+        "yahoo_finance": (
+            fetch_yahoo_finance(resolved, settings),
+            settings.quote_source_timeout_seconds,
+        ),
+        "nse": (
+            fetch_nse(resolved, settings),
+            settings.optional_source_timeout_seconds,
+        ),
+        "sebi": (
+            fetch_sebi(resolved, settings),
+            settings.optional_source_timeout_seconds,
+        ),
+        "screener": (
+            fetch_screener(resolved, settings),
+            settings.optional_source_timeout_seconds,
+        ),
+    }
+
+    async def fetch_one(name: str, coroutine: Any, timeout_seconds: float) -> tuple[str, SourceResult]:
+        try:
+            result = await asyncio.wait_for(coroutine, timeout=max(1.0, timeout_seconds))
+        except TimeoutError:
+            result = SourceResult(
+                status="timeout",
+                error=f"{name} exceeded {timeout_seconds:g}s source budget.",
+            )
+        except Exception as exc:
+            result = _coerce_source_result(exc)
+        return name, _coerce_source_result(result)
+
+    tasks = [
+        asyncio.create_task(fetch_one(name, coroutine, timeout_seconds))
+        for name, (coroutine, timeout_seconds) in source_tasks.items()
+    ]
+    done, pending = await asyncio.wait(tasks, timeout=max(1.0, settings.analyze_timeout_seconds))
+
+    sources = {
+        name: SourceResult(status="timeout", error="Source did not finish before API response budget.")
+        for name in source_tasks
+    }
+    for task in done:
+        name, result = task.result()
+        sources[name] = result
+
+    for task in pending:
+        task.cancel()
+
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
+    return sources
 
 def _get_cached_analysis(ticker: str, settings: Settings) -> AnalysisResponse | None:
     ttl = settings.cache_ttl_seconds
