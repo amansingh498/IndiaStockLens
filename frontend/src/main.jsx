@@ -4,9 +4,13 @@ import {
   Activity,
   AlertCircle,
   Building2,
+  CalendarDays,
   CheckCircle2,
+  ExternalLink,
   IndianRupee,
   Loader2,
+  Newspaper,
+  ScrollText,
   Search,
   ShieldAlert,
   TrendingDown,
@@ -128,25 +132,60 @@ function App() {
             </section>
 
             <section className="content-grid">
-              <article className="brief-panel">
-                <h3>Plain-English Brief</h3>
+              <article className="brief-panel insight-panel">
+                <div className="panel-title">
+                  <Activity size={18} />
+                  <h3>Stock Insight</h3>
+                </div>
                 <p>{analysis.brief}</p>
               </article>
 
               <article className="score-panel">
-                <h3>Scored Dimensions</h3>
+                <div className="panel-title">
+                  <TrendingUp size={18} />
+                  <h3>Score Breakdown</h3>
+                </div>
+                <p className="score-section-label">Primary signals</p>
+                <ScoreRow label="Data confidence" value={analysis.scores.data_confidence} primary />
+                <ScoreRow label="Investment quality" value={analysis.scores.investment_attractiveness} primary />
+                <ScoreRow label="Regulatory safety" value={analysis.scores.regulatory_risk} primary />
+                <p className="score-section-label supporting">Supporting detail</p>
                 <ScoreRow label="Fundamentals" value={analysis.scores.fundamentals} />
                 <ScoreRow label="Technicals" value={analysis.scores.technicals} />
                 <ScoreRow label="Sentiment" value={analysis.scores.sentiment} />
-                <ScoreRow label="Regulatory risk" value={analysis.scores.regulatory_risk} />
                 <ScoreRow label="Institutional trust" value={analysis.scores.institutional_trust} />
               </article>
             </section>
 
+            <section className="detail-grid">
+              <QuotePanel price={analysis.price} />
+              <ItemPanel
+                title="Company Reports & Events"
+                icon={<ScrollText size={18} />}
+                items={analysis.filings}
+                empty="No matching company reports or events returned."
+              />
+            </section>
+
+            <section className="detail-grid regulatory-grid">
+              <ItemPanel
+                title="Regulatory Watch"
+                icon={<ShieldAlert size={18} />}
+                items={analysis.regulatory}
+                empty="No matching SEBI items returned."
+              />
+              <ItemPanel
+                title="Latest News"
+                icon={<Newspaper size={18} />}
+                items={analysis.news}
+                empty="News sources are not enabled in the default low-credit profile."
+              />
+            </section>
+
             <section className="source-table">
               <div className="section-heading">
-                <h3>Source Status</h3>
-                <p>Live data failures stay visible without blocking the brief.</p>
+                <h3>Sources</h3>
+                <p>Provenance for the quote, reports, and risk signals shown above.</p>
               </div>
               <div className="sources">
                 {Object.entries(analysis.sources).map(([name, source]) => (
@@ -163,6 +202,113 @@ function App() {
         )}
       </section>
     </main>
+  );
+}
+
+function QuotePanel({ price }) {
+  const rows = [
+    ["Open", formatNumber(price?.open)],
+    ["Previous close", formatNumber(price?.previous_close)],
+    ["Day high", formatNumber(price?.day_high)],
+    ["Day low", formatNumber(price?.day_low)],
+    ["Volume", formatNumber(price?.volume)],
+    ["Market cap", formatNumber(price?.market_cap)],
+    ["PE", formatNumber(price?.pe_ratio)],
+    ["Forward PE", formatNumber(price?.forward_pe)],
+    ["EPS", formatNumber(price?.eps)],
+    ["Beta", formatNumber(price?.beta)],
+    ["Book value", formatNumber(price?.book_value)],
+    ["Price/book", formatNumber(price?.price_to_book)],
+  ].filter(([, value]) => value);
+
+  return (
+    <article className="data-panel">
+      <div className="panel-title">
+        <IndianRupee size={18} />
+        <h3>Quote Snapshot</h3>
+      </div>
+      {rows.length ? (
+        <dl className="quote-list">
+          {rows.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="empty-copy">No quote details returned.</p>
+      )}
+    </article>
+  );
+}
+
+function ItemPanel({ title, icon, items, empty }) {
+  const visibleItems = Array.isArray(items) ? items.slice(0, 8) : [];
+  return (
+    <article className="data-panel">
+      <div className="panel-title">
+        {icon}
+        <h3>{title}</h3>
+        <span>{visibleItems.length}</span>
+      </div>
+      {visibleItems.length ? (
+        <div className="item-list">
+          {visibleItems.map((item, index) => (
+            <DataItem key={item.url || item.link || item.xbrl_link || `${title}-${index}`} item={item} />
+          ))}
+        </div>
+      ) : (
+        <p className="empty-copy">{empty}</p>
+      )}
+    </article>
+  );
+}
+
+function DataItem({ item }) {
+  const title =
+    item.title ||
+    item.headline ||
+    item.subject ||
+    item.purpose ||
+    item.type ||
+    item.company ||
+    item.name ||
+    "Untitled item";
+  const date = item.date || item.published || item.filing_date || item.from_date;
+  const href = item.link || item.url || item.xbrl_link;
+  const tags = Array.isArray(item.tags) ? item.tags : [];
+
+  return (
+    <article className="data-item">
+      <div className="item-topline">
+        <span>{item.source || item.category || "source"}</span>
+        {item.severity ? <span className={`severity severity-${item.severity}`}>{item.severity}</span> : null}
+        {date ? (
+          <small>
+            <CalendarDays size={13} />
+            {date}
+          </small>
+        ) : null}
+      </div>
+      <strong>{title}</strong>
+      {item.detail ? <p className="item-detail">{item.detail}</p> : null}
+      <div className="item-meta">
+        {item.symbol ? <span>{item.symbol}</span> : null}
+        {item.quarter ? <span>{item.quarter}</span> : null}
+        {item.period ? <span>{item.period}</span> : null}
+        {item.financial_year ? <span>{item.financial_year}</span> : null}
+        {tags.map((tag) => (
+          <span key={tag}>{tag}</span>
+        ))}
+      </div>
+      {href ? (
+        <a href={href} target="_blank" rel="noreferrer">
+          <ExternalLink size={14} />
+          Open
+        </a>
+      ) : null}
+    </article>
   );
 }
 
@@ -189,9 +335,9 @@ function Metric({ icon, label, value, detail, tone }) {
   );
 }
 
-function ScoreRow({ label, value }) {
+function ScoreRow({ label, value, primary }) {
   return (
-    <div className="score-row">
+    <div className={`score-row${primary ? " score-row--primary" : ""}`}>
       <span>{label}</span>
       <div className="bar" aria-hidden="true">
         <i style={{ width: `${value * 10}%` }} />
@@ -203,6 +349,12 @@ function ScoreRow({ label, value }) {
 
 function SourceItem({ name, source }) {
   const ok = source.status === "ok";
+  const keys = Array.isArray(source.data?.keys) ? source.data.keys : [];
+  const counts = source.data?.counts && typeof source.data.counts === "object" ? source.data.counts : {};
+  const partialErrors = Array.isArray(source.data?.partial_errors) ? source.data.partial_errors : [];
+  const countText = Object.entries(counts)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(", ");
   return (
     <article className={`source-item ${ok ? "ok" : "warn"}`}>
       <div>
@@ -210,6 +362,11 @@ function SourceItem({ name, source }) {
         <strong>{name.replaceAll("_", " ")}</strong>
       </div>
       <span>{source.status}</span>
+      {keys.length ? <p>{keys.join(", ")}</p> : null}
+      {countText ? <p>{countText}</p> : null}
+      {partialErrors.map((partialError) => (
+        <p key={partialError} className="source-error">{partialError}</p>
+      ))}
       {source.error ? <p>{source.error}</p> : null}
     </article>
   );
